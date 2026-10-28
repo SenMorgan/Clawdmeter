@@ -70,7 +70,9 @@ static bool es8311_setup(void) {
     es8311_sample_frequency_config(es, clk.mclk_frequency, clk.sample_frequency);
     es8311_microphone_config(es, false);
     es8311_voice_volume_set(es, cfg.volume, NULL);
-    if (!cfg.amp_enable) es8311_voice_mute(es, true);   // until a ding plays
+    // Keep the DAC muted until the power amp is enabled. Otherwise the amp
+    // turns on into an already-active waveform and can produce a pop.
+    es8311_voice_mute(es, true);
     return true;
 }
 
@@ -167,10 +169,21 @@ static void stream_live(void) {
     }
 }
 
-// Amp on (or, without an amp line, the DAC unmuted) only while a ding plays.
+// The DAC and external amp are active only while a ding plays.
 static void output_on(bool on) {
-    if (cfg.amp_enable) cfg.amp_enable(on);
-    else es8311_voice_mute(es, !on);
+    if (on) {
+        if (cfg.amp_enable) {
+            cfg.amp_enable(true);
+            delay(2);  // let the NS4150B leave shutdown before unmuting
+        }
+        es8311_voice_mute(es, false);
+    } else {
+        es8311_voice_mute(es, true);
+        if (cfg.amp_enable) {
+            delay(2);  // drain the output before removing amplifier power
+            cfg.amp_enable(false);
+        }
+    }
 }
 
 static void chime_task(void* arg) {
