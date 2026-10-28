@@ -32,16 +32,11 @@ void power_hal_init(void) {
     }
     Serial.println("AXP2101 init OK");
 
-    // Power the ES8311 codec and peripherals from the ALDO rails at 3.3V.
-    // The codec's rail is unconfirmed; all four are enabled until it answers.
+    // Power the ES8311 codec and peripherals from the ALDO rail 1 at 3.3V.
+    // The NS4150B power amplifier is supplied separately from VSYS.
+    // ALDO2~3 are not used on this board.
     pmu.setALDO1Voltage(3300);
-    pmu.setALDO2Voltage(3300);
-    pmu.setALDO3Voltage(3300);
-    pmu.setALDO4Voltage(3300);
     pmu.enableALDO1();
-    pmu.enableALDO2();
-    pmu.enableALDO3();
-    pmu.enableALDO4();
 
     pmu.enableBattDetection();
     pmu.enableBattVoltageMeasure();
