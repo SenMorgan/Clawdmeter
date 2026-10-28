@@ -30,6 +30,7 @@
 // ---- IO expander ----
 #define IO_EXPANDER_ADDR     0x20
 #define IOX_LCD_RESET        1
+#define IOX_PA_CTRL          7
 
 // ---- Buttons ----
 #define BTN_BACK_GPIO        0     // BOOT — primary, Space (PTT)
