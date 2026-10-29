@@ -10,4 +10,11 @@ Waveshare ESP32-S3-Touch-LCD-3.5-C (ST7796 320×480 over 4-wire SPI, FT6336 touc
 - The FT6336 has no INT or reset wire, so touch is polled at 0x38.
 - PWR is the AXP2101 PKEY (short → brightness, hold → pair, same scheme as the AMOLED-2.16); BOOT (GPIO 0) is Space/PTT. No secondary button.
 - QMI8658 drives the 180° flip: upright reads `ax` ≈ -1 g and upside down `ax` ≈ +1 g. The panel flips in hardware (ST7796 MADCTL), so the frame stays 320×480 and touch is mapped to the flipped frame.
-- ES8311 uses MCLK/BCLK/WS/DOUT/DIN GPIOs 12/13/15/16/14. The chime uses fixed codec volume 60. ES8311/peripherals use the AXP2101 ALDO rails at 3.3V; the NS4150B is powered from VSYS.
+- ES8311 uses MCLK/BCLK/WS/DOUT/DIN GPIOs 12/13/15/16/14. The chime uses fixed codec volume 65. ES8311/peripherals use the AXP2101 ALDO rails at 3.3V; the NS4150B is powered from VSYS.
+
+An optional IS31FL3731 Charlieplex flame display plugin lives under
+`flame/`. It probes I2C address `0x74` after the board's normal
+I2C peripherals have initialized and logs whether the display is present.
+If absent, its loop hook returns immediately and the rest of the firmware is
+unaffected. Its transactions share the board I2C mutex with the PMU, IMU,
+touch controller, codec, and expander.

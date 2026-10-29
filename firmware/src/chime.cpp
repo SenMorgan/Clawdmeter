@@ -1,4 +1,5 @@
 #include "chime.h"
+#include "hal/i2c_bus_hal.h"
 #include <Arduino.h>
 #include "ESP_I2S.h"
 #include "es8311.h"
@@ -60,19 +61,27 @@ static volatile bool pending   = false;  // play when the render finishes
 static portMUX_TYPE  state_lock = portMUX_INITIALIZER_UNLOCKED;  // rendering, pending, playing
 
 static bool es8311_setup(void) {
+    if (board_i2c_lock) board_i2c_lock();
     es = es8311_create(0, cfg.es8311_addr);   // I2C port 0 (shared Wire bus)
-    if (!es) return false;
+    if (!es) {
+        if (board_i2c_unlock) board_i2c_unlock();
+        return false;
+    }
     // mclk_inverted, sclk_inverted, mclk_from_mclk_pin, mclk_frequency, sample_frequency
     const es8311_clock_config_t clk = {
         false, false, true, cfg.sample_rate * 256, cfg.sample_rate
     };
-    if (es8311_init(es, &clk, ES8311_RESOLUTION_16, ES8311_RESOLUTION_16) != ESP_OK) return false;
+    if (es8311_init(es, &clk, ES8311_RESOLUTION_16, ES8311_RESOLUTION_16) != ESP_OK) {
+        if (board_i2c_unlock) board_i2c_unlock();
+        return false;
+    }
     es8311_sample_frequency_config(es, clk.mclk_frequency, clk.sample_frequency);
     es8311_microphone_config(es, false);
     es8311_voice_volume_set(es, cfg.volume, NULL);
     // Keep the DAC muted until the power amp is enabled. Otherwise the amp
     // turns on into an already-active waveform and can produce a pop.
     es8311_voice_mute(es, true);
+    if (board_i2c_unlock) board_i2c_unlock();
     return true;
 }
 
@@ -171,6 +180,7 @@ static void stream_live(void) {
 
 // The DAC and external amp are active only while a ding plays.
 static void output_on(bool on) {
+    if (board_i2c_lock) board_i2c_lock();
     if (on) {
         if (cfg.amp_enable) {
             cfg.amp_enable(true);
@@ -184,6 +194,7 @@ static void output_on(bool on) {
             cfg.amp_enable(false);
         }
     }
+    if (board_i2c_unlock) board_i2c_unlock();
 }
 
 static void chime_task(void* arg) {
@@ -277,7 +288,11 @@ void chime_tick(void) {
 void chime_tune(float g, int volume) {
     if (!ready || playing) return;
     gain = !(g >= 0.0f) ? 0.0f : (g > 1.0f ? 1.0f : g);   // NaN too
-    if (volume >= 0 && es) es8311_voice_volume_set(es, volume > 100 ? 100 : volume, NULL);
+    if (volume >= 0 && es) {
+        if (board_i2c_lock) board_i2c_lock();
+        es8311_voice_volume_set(es, volume > 100 ? 100 : volume, NULL);
+        if (board_i2c_unlock) board_i2c_unlock();
+    }
     // A new gain renders again in the background and plays when it's done
     // (a render already running picks the new gain up itself).
     portENTER_CRITICAL(&state_lock);

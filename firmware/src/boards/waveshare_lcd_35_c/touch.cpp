@@ -1,5 +1,6 @@
 #include "../../hal/touch_hal.h"
 #include "../../hal/imu_hal.h"
+#include "../../hal/i2c_bus_hal.h"
 #include "board.h"
 #include <Arduino.h>
 #include <Wire.h>
@@ -15,23 +16,37 @@ static volatile bool     touch_pressed = false;
 static volatile uint16_t touch_x = 0;
 static volatile uint16_t touch_y = 0;
 
+// The touch controller has no interrupt line, so keep the last valid
+// coordinates and only clear the pressed state when a poll fails.
 static void touch_read_into_shared_state(void) {
+    if (board_i2c_lock) board_i2c_lock();
     Wire.beginTransmission(FT6336_ADDR);
     Wire.write(0x02);
-    if (Wire.endTransmission(false) != 0) { touch_pressed = false; return; }
-    if (Wire.requestFrom(FT6336_ADDR, (uint8_t)5) != 5) { touch_pressed = false; return; }
+    if (Wire.endTransmission(false) != 0) {
+        if (board_i2c_unlock) board_i2c_unlock();
+        touch_pressed = false; return;
+    }
+    if (Wire.requestFrom(FT6336_ADDR, (uint8_t)5) != 5) {
+        if (board_i2c_unlock) board_i2c_unlock();
+        touch_pressed = false; return;
+    }
     uint8_t fingers = Wire.read() & 0x0F;
     uint8_t xH = Wire.read();
     uint8_t xL = Wire.read();
     uint8_t yH = Wire.read();
     uint8_t yL = Wire.read();
-    if (fingers == 0 || fingers > 5) { touch_pressed = false; return; }
+    if (fingers == 0 || fingers > 5) {
+        if (board_i2c_unlock) board_i2c_unlock();
+        touch_pressed = false; return;
+    }
     touch_x = ((uint16_t)(xH & 0x0F) << 8) | xL;
     touch_y = ((uint16_t)(yH & 0x0F) << 8) | yL;
     touch_pressed = true;
+    if (board_i2c_unlock) board_i2c_unlock();
 }
 
 void touch_hal_init(void) {
+    if (board_i2c_lock) board_i2c_lock();
     Wire.beginTransmission(FT6336_ADDR);
     Wire.write(0xA8);
     if (Wire.endTransmission(false) == 0 && Wire.requestFrom(FT6336_ADDR, (uint8_t)1) == 1) {
@@ -39,6 +54,7 @@ void touch_hal_init(void) {
     } else {
         Serial.printf("Touch ID read failed (addr 0x%02X)\n", FT6336_ADDR);
     }
+    if (board_i2c_unlock) board_i2c_unlock();
 }
 
 void touch_hal_read(uint16_t* x, uint16_t* y, bool* pressed) {

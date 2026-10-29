@@ -1,4 +1,5 @@
 #include "expander.h"
+#include "../../hal/i2c_bus_hal.h"
 #include "board.h"
 #include <Arduino.h>
 #include <Wire.h>
@@ -9,11 +10,15 @@ constexpr uint8_t REG_OUTPUT = 0x01;
 constexpr uint8_t REG_CONFIG = 0x03;
 uint8_t output_latch = 0;
 
+// Preserve both output bits because the TCA9554 register is write-only from
+// the point of view of this board's control flow.
 bool write_register(uint8_t reg, uint8_t value) {
+    if (board_i2c_lock) board_i2c_lock();
     Wire.beginTransmission(IO_EXPANDER_ADDR);
     Wire.write(reg);
     Wire.write(value);
     const uint8_t error = Wire.endTransmission();
+    if (board_i2c_unlock) board_i2c_unlock();
     if (error != 0) {
         Serial.printf("TCA9554 write 0x%02X failed: %u\n", reg, error);
         return false;

@@ -1,10 +1,5 @@
 #include "../../hal/imu_hal.h"
-#include "board.h"
-#include <Arduino.h>
-#include <Wire.h>
-#include <SensorQMI8658.hpp>
-
-#include "../../hal/imu_hal.h"
+#include "../../hal/i2c_bus_hal.h"
 #include "board.h"
 #include <Arduino.h>
 #include <Wire.h>
@@ -33,8 +28,10 @@ static uint8_t accel_to_rotation(float ax) {
 }
 
 void imu_hal_init(void) {
+    if (board_i2c_lock) board_i2c_lock();
     if (!imu.begin(Wire, QMI8658_L_SLAVE_ADDRESS, IIC_SDA, IIC_SCL)) {
         Serial.println("QMI8658 init failed");
+        if (board_i2c_unlock) board_i2c_unlock();
         return;
     }
     Serial.println("QMI8658 init OK");
@@ -44,6 +41,7 @@ void imu_hal_init(void) {
         SensorQMI8658::LPF_MODE_3);
     imu.enableAccelerometer();
     imu_ok = true;
+    if (board_i2c_unlock) board_i2c_unlock();
 }
 
 void imu_hal_tick(void) {
@@ -53,7 +51,10 @@ void imu_hal_tick(void) {
     last_poll_ms = now;
 
     float ax, ay, az;
-    if (!imu.getAccelerometer(ax, ay, az)) return;
+    if (board_i2c_lock) board_i2c_lock();
+    const bool read_ok = imu.getAccelerometer(ax, ay, az);
+    if (board_i2c_unlock) board_i2c_unlock();
+    if (!read_ok) return;
 
     uint8_t target = accel_to_rotation(ax);
     if (target == 255 || target == current_rotation) {

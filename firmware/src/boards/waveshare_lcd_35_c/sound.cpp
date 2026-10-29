@@ -16,8 +16,7 @@
 static void amp_enable(bool on) { expander_set_pa_enabled(on); }
 
 void sound_hal_init(void) {
-    // Wait for the AXP2101 rails (power.cpp) to settle before probing the
-    // codec on the shared I2C bus.
+    // Let the AXP2101 ALDO1 rail settle before probing the codec.
     delay(100);
     const ChimeConfig cfg = {
         SND_I2S_MCLK, SND_I2S_BCLK, SND_I2S_WS, SND_I2S_DOUT, SND_I2S_DIN,
