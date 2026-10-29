@@ -4,6 +4,7 @@
 #include <Wire.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include <freertos/task.h>
 
 #include "animation.h"
 
@@ -19,7 +20,6 @@ constexpr uint16_t IMAGE_SIZE = MATRIX_WIDTH * MATRIX_HEIGHT;
 uint8_t page = 0;
 const uint8_t* animation = anim;
 uint8_t image[IMAGE_SIZE] = {};
-uint32_t last_frame_ms = 0;
 bool available = false;
 SemaphoreHandle_t i2c_mutex = nullptr;
 
@@ -41,14 +41,20 @@ bool select_page(uint8_t page_number) {
 }
 
 bool write_frame_registers(uint8_t page_number) {
-    if (!select_page(page_number)) return false;
+    if (i2c_mutex) xSemaphoreTakeRecursive(i2c_mutex, portMAX_DELAY);
+    if (!select_page(page_number)) {
+        if (i2c_mutex) xSemaphoreGiveRecursive(i2c_mutex);
+        return false;
+    }
 
     for (uint16_t offset = 0; offset < IMAGE_SIZE; offset += I2C_CHUNK_SIZE - 1) {
         const uint8_t count = min<uint8_t>(I2C_CHUNK_SIZE - 1, IMAGE_SIZE - offset);
         if (!write_registers(static_cast<uint8_t>(0x24 + offset), image + offset, count)) {
+            if (i2c_mutex) xSemaphoreGiveRecursive(i2c_mutex);
             return false;
         }
     }
+    if (i2c_mutex) xSemaphoreGiveRecursive(i2c_mutex);
     return true;
 }
 
@@ -75,6 +81,40 @@ void render_next_frame(void) {
 void disable(const char* reason) {
     Serial.printf("IS31FL3731 disabled: %s\n", reason);
     available = false;
+}
+
+bool write_next_frame(void) {
+    if (i2c_mutex) xSemaphoreTakeRecursive(i2c_mutex, portMAX_DELAY);
+    if (!select_page(0x0B)) {
+        if (i2c_mutex) xSemaphoreGiveRecursive(i2c_mutex);
+        disable("buffer select failed");
+        return false;
+    }
+    const uint8_t display_select = page;
+    if (!write_registers(0x01, &display_select, 1)) {
+        if (i2c_mutex) xSemaphoreGiveRecursive(i2c_mutex);
+        disable("display select failed");
+        return false;
+    }
+    page ^= 1;
+
+    render_next_frame();
+    if (!write_frame_registers(page)) {
+        if (i2c_mutex) xSemaphoreGiveRecursive(i2c_mutex);
+        disable("frame write failed");
+        return false;
+    }
+    if (i2c_mutex) xSemaphoreGiveRecursive(i2c_mutex);
+    return true;
+}
+
+void flame_task(void*) {
+    TickType_t wake_time = xTaskGetTickCount();
+    while (available) {
+        vTaskDelayUntil(&wake_time, pdMS_TO_TICKS(FRAME_INTERVAL_MS));
+        if (!write_next_frame()) break;
+    }
+    vTaskDelete(nullptr);
 }
 
 }  // namespace
@@ -132,29 +172,10 @@ void flame_plugin_init(void) {
         disable("first frame write failed");
         return;
     }
-    last_frame_ms = millis();
-}
-
-void flame_plugin_tick(void) {
-    if (!available || millis() - last_frame_ms < FRAME_INTERVAL_MS) return;
-
-    if (!select_page(0x0B)) {
-        disable("buffer select failed");
-        return;
+    if (xTaskCreatePinnedToCore(flame_task, "flame", 3072, nullptr,
+                                tskIDLE_PRIORITY, nullptr, 0) != pdPASS) {
+        disable("task creation failed");
     }
-    const uint8_t display_select = page;
-    if (!write_registers(0x01, &display_select, 1)) {
-        disable("display select failed");
-        return;
-    }
-    page ^= 1;
-
-    render_next_frame();
-    if (!write_frame_registers(page)) {
-        disable("frame write failed");
-        return;
-    }
-    last_frame_ms = millis();
 }
 
 void flame_plugin_bus_init(void) {
@@ -171,8 +192,4 @@ extern "C" void board_i2c_unlock(void) {
 
 extern "C" void board_plugin_init(void) {
     flame_plugin_init();
-}
-
-extern "C" void board_plugin_tick(void) {
-    flame_plugin_tick();
 }

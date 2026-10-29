@@ -243,7 +243,6 @@ static void check_serial_cmd() {
 extern "C" void board_init(void);
 // Optional board-local hardware, such as an auxiliary I2C animation display.
 extern "C" void board_plugin_init(void) __attribute__((weak));
-extern "C" void board_plugin_tick(void) __attribute__((weak));
 
 void setup() {
     Serial.begin(115200);
@@ -383,7 +382,6 @@ void loop() {
     performer_tick();
     mascot_tick();
     director_tick();
-    if (board_plugin_tick) board_plugin_tick();
     if (director_take_dismissed()) ble_send_dismiss();
     // Rotation transition (blank + ramp) would fight the idle fade — skip
     // ticks while the panel is dark. A rotation that happens during sleep
