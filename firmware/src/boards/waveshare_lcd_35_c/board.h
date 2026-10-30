@@ -1,8 +1,9 @@
 #pragma once
 
-// Waveshare ESP32-S3-Touch-LCD-3.5-C — 320x480 IPS LCD (ST7796 over SPI).
-// Pins are from Waveshare's official ESP-IDF factory example. The display
-// reset is driven by TCA9554 P1; the FT6336 has no reset or interrupt wire.
+// Waveshare ESP32-S3-Touch-LCD-3.5 / 3.5-C — 320x480 IPS LCD (ST7796 over
+// SPI), FT6336 touch, AXP2101 PMU, QMI8658 IMU, ES8311 codec, TCA9554 IO
+// expander. Pins are from Waveshare's ESP-IDF factory example. The display
+// reset is TCA9554 EXIO1; the FT6336 has no reset or interrupt wire.
 
 #define BOARD_NAME           "Waveshare LCD 3.5-C"
 
@@ -29,8 +30,8 @@
 
 // ---- IO expander ----
 #define IO_EXPANDER_ADDR     0x20
-#define IOX_LCD_RESET        1
-#define IOX_PA_CTRL          7
+#define IOX_LCD_RESET        1     // ST7796 reset (active LOW)
+#define IOX_PA_CTRL          7     // NS4150B CTRL (HIGH = amp on)
 
 // ---- Buttons ----
 #define BTN_BACK_GPIO        0     // BOOT — primary, Space (PTT)
@@ -43,6 +44,7 @@
 #define SND_I2S_DIN          14
 #define SND_SAMPLE_RATE      44100
 #define SND_ES8311_ADDR      0x18
+#define SND_VOLUME           65    // ES8311 0..100
 
 #define BOARD_HAS_SECONDARY_BUTTON 0
 #define BOARD_HAS_ROTATION         1

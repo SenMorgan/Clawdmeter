@@ -24,8 +24,9 @@
 // resort for chips with an FPU; without one (the C6) it can't keep up, so a
 // ding with no buffer is skipped and logged.
 //
-// A board with no amp-enable line (amp_enable null) keeps the codec's DAC
-// muted between dings instead, so its always-on amp doesn't hiss.
+// The codec's DAC is muted between dings on every board: an always-on amp
+// (amp_enable null) doesn't hiss, and a switched amp never powers up or down
+// into a live signal, which pops.
 
 // Share of the ding's own level (it peaks just under full scale): headroom
 // for the codec and the small amp. ChimeConfig.volume sets the loudness.
@@ -70,9 +71,7 @@ static bool es8311_setup(void) {
     es8311_sample_frequency_config(es, clk.mclk_frequency, clk.sample_frequency);
     es8311_microphone_config(es, false);
     es8311_voice_volume_set(es, cfg.volume, NULL);
-    // Keep the DAC muted until the power amp is enabled. Otherwise the amp
-    // turns on into an already-active waveform and can produce a pop.
-    es8311_voice_mute(es, true);
+    es8311_voice_mute(es, true);   // until a ding plays (output_on)
     return true;
 }
 
@@ -169,18 +168,19 @@ static void stream_live(void) {
     }
 }
 
-// The DAC and external amp are active only while a ding plays.
+// Amp and DAC are on only while a ding plays: amp up before the DAC unmutes,
+// DAC muted before the amp goes down.
 static void output_on(bool on) {
     if (on) {
         if (cfg.amp_enable) {
             cfg.amp_enable(true);
-            delay(2);  // let the NS4150B leave shutdown before unmuting
+            delay(2);  // let the amp leave shutdown before unmuting
         }
         es8311_voice_mute(es, false);
     } else {
         es8311_voice_mute(es, true);
         if (cfg.amp_enable) {
-            delay(2);  // drain the output before removing amplifier power
+            delay(2);  // let the mute ramp finish before the amp goes off
             cfg.amp_enable(false);
         }
     }

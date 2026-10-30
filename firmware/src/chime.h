@@ -9,8 +9,9 @@
 // the ES8311 table has works; 16-bit stereo out.
 //
 // amp_enable is the only part that differs structurally between boards: the
-// 2.16 toggles a GPIO, the 1.8 drives an XCA9554 expander line. May be null
-// (an amp with no enable line): the codec's DAC is then muted between dings.
+// 2.16 toggles a GPIO, the LCD-3.5-C drives a TCA9554 expander line. May be
+// null (an amp with no enable line). The codec's DAC is muted between dings
+// either way.
 
 typedef void (*amp_enable_fn)(bool on);
 

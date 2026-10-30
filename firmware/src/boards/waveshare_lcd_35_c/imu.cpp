@@ -4,12 +4,6 @@
 #include <Wire.h>
 #include <SensorQMI8658.hpp>
 
-#include "../../hal/imu_hal.h"
-#include "board.h"
-#include <Arduino.h>
-#include <Wire.h>
-#include <SensorQMI8658.hpp>
-
 // Poll and hysteresis timing
 #define IMU_POLL_MS       100    // ~10 Hz
 #define STABLE_TIME_MS    300    // orientation must hold this long before flipping
