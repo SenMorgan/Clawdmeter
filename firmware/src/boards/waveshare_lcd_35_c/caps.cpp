@@ -12,6 +12,7 @@ static const BoardCaps caps = {
     .has_imu = true,
     .minimal_ui = false,     // full animated UI
     .has_pwr_button = true,  // AXP2101 PKEY, see power.cpp
+    .reset_clock = true,
     .has_touch = true,
 };
 

@@ -231,6 +231,32 @@ static void format_reset_time(int mins, char* buf, size_t len, const char* none)
     }
 }
 
+// Appends the wall-clock reset time, "Resets in 2h 14m (14:32)", on boards that
+// opt in (BoardCaps.reset_clock) when the app sends the clock and the line fits
+// the card; weekly resets beyond a day also get the weekday.
+static void append_reset_clock(int mins, bool weekly, char* buf, size_t len) {
+    if (!board_caps().reset_clock || clock_base_epoch <= 0 || mins < 0) return;
+    const time_t at = (time_t)(clock_base_epoch + (long)mins * 60);
+    struct tm t;
+    gmtime_r(&at, &t);   // epoch is already local wall-clock
+    char tbuf[24];
+    if (clock_fmt == 12) {
+        int h12 = t.tm_hour % 12;
+        if (h12 == 0) h12 = 12;
+        snprintf(tbuf, sizeof(tbuf), "%d:%02d %s", h12, t.tm_min, t.tm_hour < 12 ? "AM" : "PM");
+    } else {
+        snprintf(tbuf, sizeof(tbuf), "%02d:%02d", t.tm_hour, t.tm_min);
+    }
+    static const char* const DAYS[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+    char full[64];
+    if (weekly && mins >= 1440)
+        snprintf(full, sizeof(full), "%s (%s %s)", buf, DAYS[t.tm_wday], tbuf);
+    else
+        snprintf(full, sizeof(full), "%s (%s)", buf, tbuf);
+    if (layout_text_width(L.reset_font, full) <= L.card[0].w - 2 * L.pad_x)
+        snprintf(buf, len, "%s", full);
+}
+
 static lv_obj_t* make_panel(lv_obj_t* parent, int x, int y, int w, int h) {
     lv_obj_t* panel = lv_obj_create(parent);
     lv_obj_set_pos(panel, x, y);
@@ -633,6 +659,7 @@ void ui_update(const UsageData* data) {
     } else {
         lv_label_set_text_fmt(lbl_session_pct, "%d%%", s_pct);
         format_reset_time(data->session_reset_mins, buf, sizeof(buf), "Not started");
+        append_reset_clock(data->session_reset_mins, false, buf, sizeof(buf));
         lv_label_set_text(lbl_session_reset, buf);
     }
 
@@ -660,6 +687,7 @@ void ui_update(const UsageData* data) {
         lv_label_set_text_fmt(lbl_weekly_pct, "%d%%", w_pct);
         lv_bar_set_value(bar_weekly, w_pct, LV_ANIM_ON);
         format_reset_time(data->weekly_reset_mins, buf, sizeof(buf), "---");
+        append_reset_clock(data->weekly_reset_mins, true, buf, sizeof(buf));
         lv_obj_set_style_text_font(lbl_weekly_reset, L.reset_font, 0);
         lv_label_set_text(lbl_weekly_reset, buf);
     }
