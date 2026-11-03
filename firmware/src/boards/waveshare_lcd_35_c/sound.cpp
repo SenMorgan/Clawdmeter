@@ -11,7 +11,7 @@
 // is enabled through TCA9554 EXIO7 and stays off between chimes.
 
 // Main codec volume for the Waveshare LCD 3.5-C board.
-#define CHIME_VOLUME 65
+#define CHIME_VOLUME 70
 
 static void amp_enable(bool on) { expander_set_pa_enabled(on); }
 
