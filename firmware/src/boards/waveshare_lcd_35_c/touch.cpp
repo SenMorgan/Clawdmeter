@@ -4,18 +4,21 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-// FT6336 capacitive touch over I2C. Its data layout is the same FocalTech
-// format used by the other touch ports, but this board has no INT wire, so it
-// is polled once per LVGL read.
+// FT6336 capacitive touch over I2C (FocalTech register layout). There is no
+// INT wire, so touch_hal_read() polls it: one 5-byte read, well under 1 ms.
 //   reg 0x02:        low nibble = active finger count
 //   reg 0x03 / 0x04: X high (low nibble) + X low
 //   reg 0x05 / 0x06: Y high (low nibble) + Y low
 
-static volatile bool     touch_pressed = false;
-static volatile uint16_t touch_x = 0;
-static volatile uint16_t touch_y = 0;
+#define FT6336_MAX_POINTS 2
 
-static void touch_read_into_shared_state(void) {
+static bool     touch_pressed = false;
+static uint16_t touch_x = 0;
+static uint16_t touch_y = 0;
+
+// Updates touch_pressed and, while pressed, the last coordinates (LVGL wants
+// the last point on release).
+static void poll(void) {
     Wire.beginTransmission(FT6336_ADDR);
     Wire.write(0x02);
     if (Wire.endTransmission(false) != 0) { touch_pressed = false; return; }
@@ -25,7 +28,7 @@ static void touch_read_into_shared_state(void) {
     uint8_t xL = Wire.read();
     uint8_t yH = Wire.read();
     uint8_t yL = Wire.read();
-    if (fingers == 0 || fingers > 5) { touch_pressed = false; return; }
+    if (fingers == 0 || fingers > FT6336_MAX_POINTS) { touch_pressed = false; return; }
     touch_x = ((uint16_t)(xH & 0x0F) << 8) | xL;
     touch_y = ((uint16_t)(yH & 0x0F) << 8) | yL;
     touch_pressed = true;
@@ -42,7 +45,7 @@ void touch_hal_init(void) {
 }
 
 void touch_hal_read(uint16_t* x, uint16_t* y, bool* pressed) {
-    touch_read_into_shared_state();
+    poll();
     uint16_t tx = touch_x;
     uint16_t ty = touch_y;
     // When the panel is flipped (MADCTL 180), map touch into the flipped frame.

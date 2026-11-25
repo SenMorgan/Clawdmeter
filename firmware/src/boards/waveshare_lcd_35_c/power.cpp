@@ -32,9 +32,8 @@ void power_hal_init(void) {
     }
     Serial.println("AXP2101 init OK");
 
-    // Power the ES8311 codec and peripherals from the ALDO rail 1 at 3.3V.
-    // The NS4150B power amplifier is supplied separately from VSYS.
-    // ALDO2~3 are not used on this board.
+    // ALDO1 feeds the ES8311 (the NS4150B runs from VSYS). sound_hal_init()
+    // waits for it to settle before probing the codec.
     pmu.setALDO1Voltage(3300);
     pmu.enableALDO1();
 
