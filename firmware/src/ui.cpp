@@ -354,10 +354,13 @@ static void format_reset_time(int mins, char* buf, size_t len, const char* none)
 
 // Appends the wall-clock reset time, "Resets in 2h 14m (14:32)", on boards that
 // opt in (BoardCaps.reset_clock) when the app sends the clock and the line fits
-// the card; weekly resets beyond a day also get the weekday.
-static void append_reset_clock(int mins, bool weekly, char* buf, size_t len) {
+// card `card`; weekly resets beyond a day also get the weekday. The clock's
+// UTC offset is today's, so a reset after a DST change reads an hour off.
+static void append_reset_clock(int mins, bool weekly, int card, char* buf, size_t len) {
     if (!board_caps().reset_clock || clock_base_epoch <= 0 || mins < 0) return;
-    const time_t at = (time_t)(clock_base_epoch + (long)mins * 60);
+    // `mins` is rounded to the nearest minute and the epoch carries seconds:
+    // round the sum too, or a payload sent late in a minute reads a minute early.
+    const time_t at = (time_t)((clock_base_epoch + (long)mins * 60 + 30) / 60 * 60);
     struct tm t;
     gmtime_r(&at, &t);   // epoch is already local wall-clock
     char tbuf[24];
@@ -374,7 +377,7 @@ static void append_reset_clock(int mins, bool weekly, char* buf, size_t len) {
         snprintf(full, sizeof(full), "%s (%s %s)", buf, DAYS[t.tm_wday], tbuf);
     else
         snprintf(full, sizeof(full), "%s (%s)", buf, tbuf);
-    if (layout_text_width(L.reset_font, full) <= L.card[0].w - 2 * L.pad_x)
+    if (layout_text_width(L.reset_font, full) <= L.card[card].w - 2 * L.pad_x)
         snprintf(buf, len, "%s", full);
 }
 
@@ -1047,7 +1050,7 @@ void ui_update(const UsageData* data) {
     } else {
         lv_label_set_text_fmt(lbl_session_pct, "%d%%", s_pct);
         format_reset_time(data->session_reset_mins, buf, sizeof(buf), data->weekly_only ? "---" : "Not started");
-        append_reset_clock(data->session_reset_mins, data->weekly_only, buf, sizeof(buf));
+        append_reset_clock(data->session_reset_mins, data->weekly_only, 0, buf, sizeof(buf));
         lv_label_set_text(lbl_session_reset, buf);
     }
 
@@ -1068,7 +1071,7 @@ void ui_update(const UsageData* data) {
         lv_label_set_text_fmt(lbl_weekly_pct, "%d%%", w_pct);
         lv_bar_set_value(bar_weekly, w_pct, LV_ANIM_ON);
         format_reset_time(data->weekly_reset_mins, buf, sizeof(buf), "---");
-        append_reset_clock(data->weekly_reset_mins, true, buf, sizeof(buf));
+        append_reset_clock(data->weekly_reset_mins, true, 1, buf, sizeof(buf));
         lv_obj_set_style_text_font(lbl_weekly_reset, L.reset_font, 0);
         lv_label_set_text(lbl_weekly_reset, buf);
     }
